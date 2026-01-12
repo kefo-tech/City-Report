@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>بلاغات القرب - MVP</title>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#111111"/>
+  <link rel="stylesheet" href="styles.css">
+
+  <!-- Leaflet (OpenStreetMap) -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+</head>
+
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-title">منصة البلاغات القريبة</div>
+      <div class="brand-sub">تنبيه محلي + مصداقية</div>
+    </div>
+
+    <div class="actions">
+      <button id="btnLocate" class="btn ghost">تحديث موقعي</button>
+      <button id="btnAdd" class="btn primary">+ إضافة بلاغ</button>
+      <button id="btnAuth" class="btn">تسجيل / دخول</button>
+      <button id="btnLogout" class="btn danger hidden">خروج</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="panel">
+      <div class="panel-head">
+        <div class="tabs">
+          <button class="tab active" data-tab="feed">المنشورات</button>
+          <button class="tab" data-tab="map">الخريطة</button>
+        </div>
+
+        <div class="filters">
+          <select id="radius">
+            <option value="200">200m</option>
+            <option value="500" selected>500m</option>
+            <option value="1000">1km</option>
+          </select>
+          <select id="typeFilter">
+            <option value="all" selected>كل الأنواع</option>
+            <option value="حفريات">حفريات</option>
+            <option value="قمامة">قمامة</option>
+            <option value="إنارة">إنارة</option>
+            <option value="خطر">خطر</option>
+            <option value="أخرى">أخرى</option>
+          </select>
+          <button id="btnRefresh" class="btn ghost">تحديث</button>
+        </div>
+      </div>
+
+      <div class="panel-body">
+        <div id="tab-feed" class="tabpage">
+          <div id="status" class="status"></div>
+          <div id="feed" class="feed"></div>
+        </div>
+
+        <div id="tab-map" class="tabpage hidden">
+          <div id="map" class="map"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- AUTH MODAL -->
+  <div id="modalAuth" class="modal hidden">
+    <div class="modal-card">
+      <div class="modal-title">تسجيل / دخول</div>
+      <div class="modal-row">
+        <input id="authEmail" type="email" placeholder="البريد الإلكتروني">
+      </div>
+      <div class="modal-row">
+        <input id="authPass" type="password" placeholder="كلمة المرور">
+      </div>
+      <div class="modal-row">
+        <input id="authName" type="text" placeholder="اسم مستعار (للتسجيل فقط)">
+      </div>
+      <div class="modal-actions">
+        <button id="btnLogin" class="btn primary">دخول</button>
+        <button id="btnRegister" class="btn">تسجيل</button>
+        <button class="btn ghost" data-close="#modalAuth">إغلاق</button>
+      </div>
+      <div id="authMsg" class="hint"></div>
+    </div>
+  </div>
+
+  <!-- ADD REPORT MODAL -->
+  <div id="modalAdd" class="modal hidden">
+    <div class="modal-card">
+      <div class="modal-title">إضافة بلاغ</div>
+
+      <div class="modal-row">
+        <select id="reportType">
+          <option value="حفريات">حفريات</option>
+          <option value="قمامة">قمامة</option>
+          <option value="إنارة">إنارة</option>
+          <option value="خطر">خطر</option>
+          <option value="أخرى">أخرى</option>
+        </select>
+      </div>
+
+      <div class="modal-row">
+        <textarea id="reportText" rows="4" placeholder="اكتب وصفًا مختصرًا للبلاغ..."></textarea>
+      </div>
+
+      <div class="modal-row">
+        <div class="hint">
+          سيتم استخدام موقعك الحالي كنقطة البلاغ. يمكنك تحديثه من زر “تحديث موقعي”.
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button id="btnSubmitReport" class="btn primary">نشر البلاغ</button>
+        <button class="btn ghost" data-close="#modalAdd">إغلاق</button>
+      </div>
+      <div id="addMsg" class="hint"></div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
