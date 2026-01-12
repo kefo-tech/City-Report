@@ -1,4 +1,4 @@
-const CACHE = "complaints-mvp-v2";
+const CACHE = "complaints-mvp-v3";
 const ASSETS = ["./", "./index.html", "./styles.css", "./app.js", "./manifest.json"];
 
 self.addEventListener("install", (e) => {
@@ -10,4 +10,5 @@ self.addEventListener("fetch", (e) => {
     caches.match(e.request).then((r) => r || fetch(e.request))
   );
 });
+
 
