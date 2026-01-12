@@ -1,7 +1,6 @@
 /* City Report - MVP (No ES Modules) */
 
 (function () {
-  // ====== Firebase Config (ضعه كما هو عندك) ======
   const firebaseConfig = {
     apiKey: "AIzaSyDBpj59oQ4BbSCLQi117Rn-gZjZ7awujV4",
     authDomain: "report-77313.firebaseapp.com",
@@ -11,7 +10,6 @@
     appId: "1:664112522932:web:ed636e68015bd089fb19e1"
   };
 
-  // ====== Helpers ======
   const $ = (s) => document.querySelector(s);
   const on = (el, ev, fn) => { if (el) el.addEventListener(ev, fn); };
   const show = (el) => el && el.classList.remove("hidden");
@@ -26,7 +24,6 @@
       .replaceAll("'", "&#039;");
   }
 
-  // Haversine distance in meters
   function distanceMeters(lat1, lon1, lat2, lon2) {
     const R = 6371000;
     const toRad = (d) => d * Math.PI / 180;
@@ -40,7 +37,7 @@
     return Math.round(R * c);
   }
 
-  // ====== UI refs ======
+  // UI refs
   const statusEl = $("#status");
   const feedEl = $("#feed");
 
@@ -81,20 +78,17 @@
     });
   });
 
-  // ====== Firebase init ======
-  try {
-    firebase.initializeApp(firebaseConfig);
-  } catch (e) {
-    // if already initialized
-  }
+  // Firebase init
+  try { firebase.initializeApp(firebaseConfig); } catch (e) {}
   const auth = firebase.auth();
   const db = firebase.firestore();
 
   let currentUser = null;
-  let currentPos = null; // {lat,lng}
+  let currentPos = null;
   let lastRenderedReports = [];
+  let votingLock = false; // يمنع الضغط المتكرر
 
-  // ====== Map ======
+  // Map
   let map = null;
   let markers = [];
   function ensureMap() {
@@ -104,10 +98,7 @@
       attribution: "&copy; OpenStreetMap"
     }).addTo(map);
   }
-  function clearMarkers() {
-    markers.forEach(m => m.remove());
-    markers = [];
-  }
+  function clearMarkers() { markers.forEach(m => m.remove()); markers = []; }
   function renderMapMarkers(list) {
     if (!$("#tab-map") || $("#tab-map").classList.contains("hidden")) return;
     ensureMap();
@@ -128,7 +119,7 @@
     });
   }
 
-  // ====== Location ======
+  // Location
   async function locate() {
     statusEl.textContent = "جارٍ تحديد موقعك…";
     currentPos = await new Promise((resolve) => {
@@ -149,7 +140,7 @@
     return currentPos;
   }
 
-  // ====== Auth ======
+  // Auth
   auth.onAuthStateChanged(async (u) => {
     currentUser = u || null;
     if (currentUser) {
@@ -179,7 +170,7 @@
     }
   }
 
-  // ====== UI events ======
+  // UI events
   on(btnAuth, "click", () => show(modalAuth));
   on(btnLogout, "click", async () => auth.signOut());
 
@@ -190,11 +181,7 @@
 
   on(btnAdd, "click", async () => {
     addMsg.textContent = "";
-    if (!currentUser) {
-      addMsg.textContent = "يجب تسجيل الدخول لإضافة بلاغ.";
-      show(modalAuth);
-      return;
-    }
+    if (!currentUser) { addMsg.textContent = "يجب تسجيل الدخول لإضافة بلاغ."; show(modalAuth); return; }
     if (!currentPos) await locate();
     show(modalAdd);
   });
@@ -262,7 +249,7 @@
     }
   });
 
-  // ====== Feed ======
+  // Feed
   async function refreshFeed() {
     feedEl.innerHTML = "";
     const radiusMeters = parseInt(radiusEl.value, 10) || 500;
@@ -275,7 +262,6 @@
     }
 
     try {
-      // MVP: جلب آخر 100 بلاغ
       const snap = await db.collection("reports")
         .orderBy("createdAt", "desc")
         .limit(100)
@@ -336,7 +322,11 @@
         <button class="btn primary" data-vote="yes" data-id="${r.id}">صادق (${yes})</button>
         <button class="btn danger" data-vote="no" data-id="${r.id}">كاذب (${no})</button>
       </div>
+
+      <div class="small" data-err style="margin-top:8px; opacity:.85;"></div>
     `;
+
+    const errEl = el.querySelector('[data-err]');
 
     on(el.querySelector('[data-openmap]'), "click", () => {
       document.querySelectorAll(".tab").forEach(x => x.classList.remove("active"));
@@ -350,9 +340,24 @@
 
     el.querySelectorAll("[data-vote]").forEach(btn => {
       on(btn, "click", async () => {
+        errEl.textContent = "";
         if (!currentUser) { show(modalAuth); return; }
-        await castVote(r.id, btn.dataset.vote);
-        await refreshFeed();
+        if (votingLock) return;
+
+        votingLock = true;
+        btn.disabled = true;
+
+        try {
+          await castVote(r.id, btn.dataset.vote);
+          await refreshFeed();
+        } catch (e) {
+          const msg = e?.message || String(e);
+          errEl.textContent = "خطأ التصويت: " + msg;
+          statusEl.textContent = "خطأ التصويت: " + msg;
+        } finally {
+          votingLock = false;
+          btn.disabled = false;
+        }
       });
     });
 
@@ -368,6 +373,7 @@
       if (!reportSnap.exists) throw new Error("البلاغ غير موجود.");
 
       const report = reportSnap.data();
+
       const prevSnap = await tx.get(voteRef);
       const prevVote = prevSnap.exists ? prevSnap.data().vote : null;
 
