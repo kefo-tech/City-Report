@@ -3,67 +3,97 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>منصة البلاغات القريبة - City Report</title>
+  <title>City Report | منصة البلاغات القريبة</title>
+  <meta name="theme-color" content="#0f172a"/>
+  <meta name="description" content="منصة بلاغات طريق ذكية تعرض التنبيهات القريبة على الخريطة مع إنذار صوتي تدريجي حسب المسافة." />
 
-  <link rel="stylesheet" href="./styles.css">
-  <meta name="theme-color" content="#111111"/>
-
-  <!-- Leaflet -->
+  <link rel="stylesheet" href="./styles.css?v=2">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 </head>
 
 <body>
   <header class="topbar">
     <div class="brand">
-      <div class="brand-title">منصة البلاغات القريبة</div>
-      <div class="brand-sub">تنبيه محلي + مصداقية</div>
+      <div class="brand-badge"></div>
+      <div>
+        <div class="brand-title">منصة البلاغات القريبة</div>
+        <div class="brand-sub">تنبيه مروري محلي لحظي للسائقين</div>
+      </div>
     </div>
 
     <div class="actions">
-      <button id="btnAdd" class="btn primary">+ إضافة بلاغ</button>
-      <button id="btnLocate" class="btn ghost">تحديث موقعي</button>
-      <button id="btnAuth" class="btn">تسجيل / دخول</button>
+      <button id="btnSound" class="btn ghost">🔊 الصوت مفعل</button>
+      <button id="btnLocate" class="btn ghost">📍 موقعي</button>
+      <button id="btnAdd" class="btn primary">＋ بلاغ جديد</button>
+      <button id="btnAuth" class="btn">دخول</button>
       <button id="btnLogout" class="btn danger hidden">خروج</button>
     </div>
   </header>
 
   <main class="layout">
-    <section class="panel">
+    <section class="map-shell">
+      <div id="map" class="map"></div>
+
+      <div class="floating-status">
+        <div class="live-pill">
+          <span class="live-dot"></span>
+          <span id="liveLocationText">جاري تحديد الموقع…</span>
+        </div>
+
+        <div class="alert-box" id="activeAlertBox">
+          <div class="alert-title">لا يوجد تنبيه حالي</div>
+          <div class="alert-sub">سيظهر هنا أقرب بلاغ مهم أمامك</div>
+        </div>
+      </div>
+
+      <div class="map-center-pin">
+        <div class="pin-ring"></div>
+        <div class="pin-core"></div>
+      </div>
+
+      <button id="btnQuickAdd" class="fab">＋</button>
+    </section>
+
+    <section class="side-panel">
       <div class="panel-head">
         <div class="tabs">
-          <button class="tab active" data-tab="feed">المنشورات</button>
-          <button class="tab" data-tab="map">الخريطة</button>
+          <button class="tab active" data-tab="feed">البلاغات</button>
+          <button class="tab" data-tab="nearby">القريبة</button>
         </div>
 
         <div class="filters">
           <select id="radius">
-            <option value="200">200m</option>
-            <option value="500" selected>500m</option>
-            <option value="1000">1km</option>
+            <option value="700" selected>700 متر</option>
+            <option value="1000">1 كم</option>
+            <option value="1500">1.5 كم</option>
+            <option value="3000">3 كم</option>
           </select>
 
           <select id="typeFilter">
             <option value="all" selected>كل الأنواع</option>
-            <option value="حفريات">حفريات</option>
-            <option value="قمامة">قمامة</option>
-            <option value="إنارة">إنارة</option>
-            <option value="خطر">خطر</option>
+            <option value="زحمة">زحمة</option>
+            <option value="حفرة">حفرة</option>
+            <option value="أعمال بناء">أعمال بناء</option>
+            <option value="حادث">حادث</option>
+            <option value="إغلاق طريق">إغلاق طريق</option>
+            <option value="جسم خطر">جسم خطر</option>
             <option value="أخرى">أخرى</option>
           </select>
 
-          <button id="btnRefresh" class="btn ghost">تحديث</button>
+          <button id="btnRefresh" class="btn ghost small">تحديث</button>
         </div>
       </div>
 
-      <div class="panel-body">
-        <div id="tab-feed" class="tabpage">
-          <div id="status" class="status">جاهز…</div>
-          <div id="feed" class="feed"></div>
-        </div>
+      <div class="status-bar" id="status">
+        جاهز...
+      </div>
 
-        <div id="tab-map" class="tabpage hidden">
-          <div id="map" class="map"></div>
-        </div>
+      <div id="tab-feed" class="tabpage">
+        <div id="feed" class="feed"></div>
+      </div>
+
+      <div id="tab-nearby" class="tabpage hidden">
+        <div id="nearbyFeed" class="feed"></div>
       </div>
     </section>
   </main>
@@ -98,20 +128,43 @@
   <!-- ADD REPORT MODAL -->
   <div id="modalAdd" class="modal hidden">
     <div class="modal-card">
-      <div class="modal-title">إضافة بلاغ</div>
+      <div class="modal-title">إضافة بلاغ جديد</div>
 
       <div class="modal-row">
         <select id="reportType">
-          <option value="حفريات">حفريات</option>
-          <option value="قمامة">قمامة</option>
-          <option value="إنارة">إنارة</option>
-          <option value="خطر">خطر</option>
+          <option value="زحمة">زحمة</option>
+          <option value="حفرة">حفرة</option>
+          <option value="أعمال بناء">أعمال بناء</option>
+          <option value="حادث">حادث</option>
+          <option value="إغلاق طريق">إغلاق طريق</option>
+          <option value="جسم خطر">جسم خطر</option>
           <option value="أخرى">أخرى</option>
         </select>
       </div>
 
+      <div class="modal-row two">
+        <div>
+          <label class="field-label">مدة البلاغ</label>
+          <select id="reportTTL">
+            <option value="30">30 دقيقة</option>
+            <option value="60" selected>ساعة</option>
+            <option value="180">3 ساعات</option>
+            <option value="720">12 ساعة</option>
+            <option value="1440">24 ساعة</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="field-label">اتجاه السير</label>
+          <select id="reportDirectionMode">
+            <option value="current" selected>حسب اتجاهي الحالي</option>
+            <option value="all">كل الاتجاهات</option>
+          </select>
+        </div>
+      </div>
+
       <div class="modal-row">
-        <textarea id="reportText" rows="4" placeholder="اكتب وصفًا مختصرًا للبلاغ..."></textarea>
+        <textarea id="reportText" rows="4" placeholder="وصف مختصر: مثال، حفرة عميقة في المسار الأيمن قبل الإشارة"></textarea>
       </div>
 
       <div class="modal-actions">
@@ -123,15 +176,15 @@
     </div>
   </div>
 
-  <!-- Leaflet JS -->
+  <!-- Toast -->
+  <div id="toast" class="toast hidden"></div>
+
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-  <!-- Firebase (Compat) - بدون import -->
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
-  <!-- Close modals -->
   <script>
     document.addEventListener("click", (e) => {
       const close = e.target?.getAttribute?.("data-close");
@@ -142,7 +195,6 @@
     });
   </script>
 
-  <!-- App -->
-  <script src="./app.js?v=10"></script>
+  <script src="./app.js?v=2"></script>
 </body>
 </html>
