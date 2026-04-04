@@ -1,396 +1,854 @@
-/* City Report - MVP (No ES Modules) */
+/************************************************
+ * City Report - Near Reports Alerts
+ * Firebase + Leaflet + صوت + تنبيه تدريجي
+ ************************************************/
 
-(function () {
-  const firebaseConfig = {
+/* ================================
+   Firebase Config
+================================ */
+ const firebaseConfig = {
     apiKey: "AIzaSyDBpj59oQ4BbSCLQi117Rn-gZjZ7awujV4",
     authDomain: "report-77313.firebaseapp.com",
     projectId: "report-77313",
     storageBucket: "report-77313.appspot.com",
     messagingSenderId: "664112522932",
     appId: "1:664112522932:web:ed636e68015bd089fb19e1"
+};
+
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
+
+/* ================================
+   DOM
+================================ */
+const $ = (id) => document.getElementById(id);
+
+const btnAdd = $("btnAdd");
+const btnQuickAdd = $("btnQuickAdd");
+const btnLocate = $("btnLocate");
+const btnRefresh = $("btnRefresh");
+const btnAuth = $("btnAuth");
+const btnLogout = $("btnLogout");
+const btnLogin = $("btnLogin");
+const btnRegister = $("btnRegister");
+const btnSubmitReport = $("btnSubmitReport");
+const btnSound = $("btnSound");
+
+const modalAuth = $("modalAuth");
+const modalAdd = $("modalAdd");
+
+const authEmail = $("authEmail");
+const authPass = $("authPass");
+const authName = $("authName");
+const authMsg = $("authMsg");
+
+const reportType = $("reportType");
+const reportText = $("reportText");
+const reportTTL = $("reportTTL");
+const reportDirectionMode = $("reportDirectionMode");
+const addMsg = $("addMsg");
+
+const statusEl = $("status");
+const feedEl = $("feed");
+const nearbyFeedEl = $("nearbyFeed");
+const radiusEl = $("radius");
+const typeFilterEl = $("typeFilter");
+const liveLocationText = $("liveLocationText");
+const activeAlertBox = $("activeAlertBox");
+const toastEl = $("toast");
+
+/* ================================
+   State
+================================ */
+let map;
+let userMarker = null;
+let userCircle = null;
+let watchId = null;
+
+let currentUser = null;
+let userPosition = null;
+let currentHeading = null;
+let reports = [];
+let markerMap = new Map();
+let soundEnabled = true;
+let speechReady = false;
+
+const reportAlertState = new Map();
+/*
+ لكل بلاغ:
+ {
+   lastBand: number|null,
+   passed: boolean,
+   minDistance: number,
+   lastDistance: number,
+   enteredNear: boolean,
+   lastSpokenAt: number
+ }
+*/
+
+const REPORT_COLLECTION = "road_reports";
+const MAX_REPORT_FETCH_HOURS = 24;
+const DEFAULT_RADIUS = 700;
+
+/* ================================
+   Init
+================================ */
+initMap();
+bindUI();
+ensureSpeechReady();
+initAuth();
+subscribeReports();
+
+/* ================================
+   UI Bindings
+================================ */
+function bindUI() {
+  btnAdd.addEventListener("click", openAddModal);
+  btnQuickAdd.addEventListener("click", openAddModal);
+
+  btnLocate.addEventListener("click", centerOnUser);
+
+  btnRefresh.addEventListener("click", () => {
+    renderAll();
+    toast("تم تحديث الواجهة");
+  });
+
+  btnAuth.addEventListener("click", () => modalAuth.classList.remove("hidden"));
+  btnLogout.addEventListener("click", logoutUser);
+
+  btnLogin.addEventListener("click", loginUser);
+  btnRegister.addEventListener("click", registerUser);
+  btnSubmitReport.addEventListener("click", submitReport);
+
+  btnSound.addEventListener("click", toggleSound);
+
+  radiusEl.addEventListener("change", renderAll);
+  typeFilterEl.addEventListener("change", renderAll);
+
+  document.querySelectorAll(".tab").forEach(btn => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".tab").forEach(x => x.classList.remove("active"));
+      btn.classList.add("active");
+      const tab = btn.dataset.tab;
+      $("tab-feed").classList.toggle("hidden", tab !== "feed");
+      $("tab-nearby").classList.toggle("hidden", tab !== "nearby");
+    });
+  });
+}
+
+/* ================================
+   Map
+================================ */
+function initMap() {
+  map = L.map("map", {
+    zoomControl: true,
+    attributionControl: true
+  }).setView([35.0, 38.5], 7);
+
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 19,
+    attribution: "&copy; OpenStreetMap contributors"
+  }).addTo(map);
+
+  if ("geolocation" in navigator) {
+    watchId = navigator.geolocation.watchPosition(
+      onLocationUpdate,
+      onLocationError,
+      {
+        enableHighAccuracy: true,
+        maximumAge: 3000,
+        timeout: 12000
+      }
+    );
+  } else {
+    setStatus("المتصفح لا يدعم تحديد الموقع.");
+  }
+}
+
+function onLocationUpdate(pos) {
+  const { latitude, longitude, heading, accuracy, speed } = pos.coords;
+
+  currentHeading = Number.isFinite(heading) ? heading : currentHeading;
+  userPosition = {
+    lat: latitude,
+    lng: longitude,
+    accuracy: accuracy || 0,
+    speed: speed || 0,
+    heading: currentHeading
   };
 
-  const $ = (s) => document.querySelector(s);
-  const on = (el, ev, fn) => { if (el) el.addEventListener(ev, fn); };
-  const show = (el) => el && el.classList.remove("hidden");
-  const hide = (el) => el && el.classList.add("hidden");
+  liveLocationText.textContent =
+    `موقعك مباشر الآن${accuracy ? ` • دقة ${Math.round(accuracy)}م` : ""}`;
 
-  function escapeHtml(str) {
-    return (str ?? "").toString()
-      .replaceAll("&", "&amp;")
-      .replaceAll("<", "&lt;")
-      .replaceAll(">", "&gt;")
-      .replaceAll('"', "&quot;")
-      .replaceAll("'", "&#039;");
-  }
+  const latlng = [latitude, longitude];
 
-  function distanceMeters(lat1, lon1, lat2, lon2) {
-    const R = 6371000;
-    const toRad = (d) => d * Math.PI / 180;
-    const dLat = toRad(lat2 - lat1);
-    const dLon = toRad(lon2 - lon1);
-    const a =
-      Math.sin(dLat / 2) ** 2 +
-      Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
-      Math.sin(dLon / 2) ** 2;
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return Math.round(R * c);
-  }
-
-  // UI refs
-  const statusEl = $("#status");
-  const feedEl = $("#feed");
-
-  const btnAuth = $("#btnAuth");
-  const btnLogout = $("#btnLogout");
-  const btnAdd = $("#btnAdd");
-  const btnLocate = $("#btnLocate");
-  const btnRefresh = $("#btnRefresh");
-
-  const modalAuth = $("#modalAuth");
-  const modalAdd = $("#modalAdd");
-
-  const authEmail = $("#authEmail");
-  const authPass = $("#authPass");
-  const authName = $("#authName");
-  const authMsg = $("#authMsg");
-
-  const reportType = $("#reportType");
-  const reportText = $("#reportText");
-  const addMsg = $("#addMsg");
-
-  const radiusEl = $("#radius");
-  const typeFilterEl = $("#typeFilter");
-
-  // Tabs
-  document.querySelectorAll(".tab").forEach(t => {
-    on(t, "click", () => {
-      document.querySelectorAll(".tab").forEach(x => x.classList.remove("active"));
-      t.classList.add("active");
-      const tab = t.dataset.tab;
-      if (tab === "feed") {
-        show($("#tab-feed")); hide($("#tab-map"));
-      } else {
-        hide($("#tab-feed")); show($("#tab-map"));
-        ensureMap();
-        renderMapMarkers(lastRenderedReports);
-      }
-    });
-  });
-
-  // Firebase init
-  try { firebase.initializeApp(firebaseConfig); } catch (e) {}
-  const auth = firebase.auth();
-  const db = firebase.firestore();
-
-  let currentUser = null;
-  let currentPos = null;
-  let lastRenderedReports = [];
-  let votingLock = false; // يمنع الضغط المتكرر
-
-  // Map
-  let map = null;
-  let markers = [];
-  function ensureMap() {
-    if (map) return;
-    map = L.map("map").setView([currentPos?.lat || 0, currentPos?.lng || 0], 15);
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      attribution: "&copy; OpenStreetMap"
+  if (!userMarker) {
+    userMarker = L.circleMarker(latlng, {
+      radius: 8,
+      color: "#22c55e",
+      weight: 3,
+      fillColor: "#22c55e",
+      fillOpacity: 0.95
     }).addTo(map);
-  }
-  function clearMarkers() { markers.forEach(m => m.remove()); markers = []; }
-  function renderMapMarkers(list) {
-    if (!$("#tab-map") || $("#tab-map").classList.contains("hidden")) return;
-    ensureMap();
-    clearMarkers();
 
-    if (currentPos) {
-      const me = L.marker([currentPos.lat, currentPos.lng]).addTo(map);
-      me.bindPopup("موقعي الحالي");
-      markers.push(me);
-      map.setView([currentPos.lat, currentPos.lng], 15);
-    }
+    userCircle = L.circle(latlng, {
+      radius: accuracy || 30,
+      color: "#22c55e",
+      fillColor: "#22c55e",
+      fillOpacity: 0.08,
+      weight: 1
+    }).addTo(map);
 
-    list.forEach(r => {
-      const loc = r.location;
-      const m = L.marker([loc.latitude, loc.longitude]).addTo(map);
-      m.bindPopup(`<b>${escapeHtml(r.type)}</b><br>${escapeHtml(r.text)}<br>✅ ${r.yesCount||0} | ❌ ${r.noCount||0}`);
-      markers.push(m);
-    });
+    map.setView(latlng, 16);
+  } else {
+    userMarker.setLatLng(latlng);
+    userCircle.setLatLng(latlng);
+    userCircle.setRadius(Math.max(accuracy || 20, 15));
   }
 
-  // Location
-  async function locate() {
-    statusEl.textContent = "جارٍ تحديد موقعك…";
-    currentPos = await new Promise((resolve) => {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-        () => resolve(null),
-        { enableHighAccuracy: true, timeout: 12000, maximumAge: 10000 }
-      );
-    });
+  checkNearbyAlerts();
+  renderAll();
+}
 
-    if (!currentPos) {
-      statusEl.textContent = "تعذر تحديد الموقع. فعّل GPS وأذونات الموقع ثم حاول مجددًا.";
-      return null;
-    }
+function onLocationError(err) {
+  console.error(err);
+  setStatus("تعذر الوصول إلى الموقع. تأكد من إعطاء الإذن.");
+  liveLocationText.textContent = "تعذر تحديد الموقع";
+}
 
-    statusEl.textContent = `تم تحديد موقعك. lat:${currentPos.lat.toFixed(5)} lng:${currentPos.lng.toFixed(5)}`;
-    if (map) map.setView([currentPos.lat, currentPos.lng], 16);
-    return currentPos;
+function centerOnUser() {
+  if (!userPosition) {
+    toast("الموقع غير متاح بعد");
+    return;
   }
+  map.setView([userPosition.lat, userPosition.lng], 16);
+}
 
-  // Auth
-  auth.onAuthStateChanged(async (u) => {
-    currentUser = u || null;
+/* ================================
+   Auth
+================================ */
+function initAuth() {
+  auth.onAuthStateChanged(async (user) => {
+    currentUser = user || null;
+
     if (currentUser) {
-      hide(btnAuth);
-      show(btnLogout);
-      statusEl.textContent = `مرحبًا ${currentUser.displayName || currentUser.email} — يتم تحميل البلاغات…`;
-      await ensureUserDoc();
+      btnAuth.classList.add("hidden");
+      btnLogout.classList.remove("hidden");
+      authMsg.textContent = "";
+      modalAuth.classList.add("hidden");
+      toast(`أهلاً ${currentUser.email}`);
     } else {
-      show(btnAuth);
-      hide(btnLogout);
-      statusEl.textContent = "غير مسجل. يمكنك التصفح، لكن إضافة/تصويت يحتاج تسجيل دخول.";
+      btnAuth.classList.remove("hidden");
+      btnLogout.classList.add("hidden");
     }
-    await refreshFeed();
   });
+}
 
-  async function ensureUserDoc() {
-    const ref = db.collection("users").doc(currentUser.uid);
-    const snap = await ref.get();
-    if (!snap.exists) {
-      await ref.set({
-        displayName: currentUser.displayName || "مستخدم",
-        email: currentUser.email || "",
-        emailVerified: !!currentUser.emailVerified,
-        reputationScore: 0,
-        createdAt: firebase.firestore.FieldValue.serverTimestamp()
-      });
-    }
+async function loginUser() {
+  const email = authEmail.value.trim();
+  const password = authPass.value.trim();
+
+  if (!email || !password) {
+    authMsg.textContent = "أدخل البريد وكلمة المرور.";
+    return;
   }
 
-  // UI events
-  on(btnAuth, "click", () => show(modalAuth));
-  on(btnLogout, "click", async () => auth.signOut());
+  try {
+    await auth.signInWithEmailAndPassword(email, password);
+    authMsg.textContent = "تم تسجيل الدخول.";
+  } catch (err) {
+    console.error(err);
+    authMsg.textContent = err.message;
+  }
+}
 
-  on(btnLocate, "click", async () => { await locate(); await refreshFeed(); });
-  on(btnRefresh, "click", refreshFeed);
-  on(radiusEl, "change", refreshFeed);
-  on(typeFilterEl, "change", refreshFeed);
+async function registerUser() {
+  const email = authEmail.value.trim();
+  const password = authPass.value.trim();
+  const name = authName.value.trim();
 
-  on(btnAdd, "click", async () => {
-    addMsg.textContent = "";
-    if (!currentUser) { addMsg.textContent = "يجب تسجيل الدخول لإضافة بلاغ."; show(modalAuth); return; }
-    if (!currentPos) await locate();
-    show(modalAdd);
-  });
+  if (!email || !password || !name) {
+    authMsg.textContent = "أدخل الاسم والبريد وكلمة المرور.";
+    return;
+  }
 
-  on($("#btnLogin"), "click", async () => {
-    authMsg.textContent = "";
-    try {
-      await auth.signInWithEmailAndPassword(authEmail.value.trim(), authPass.value);
-      hide(modalAuth);
-    } catch (e) {
-      authMsg.textContent = e.message;
-    }
-  });
+  try {
+    const cred = await auth.createUserWithEmailAndPassword(email, password);
+    await cred.user.updateProfile({ displayName: name });
+    authMsg.textContent = "تم إنشاء الحساب بنجاح.";
+  } catch (err) {
+    console.error(err);
+    authMsg.textContent = err.message;
+  }
+}
 
-  on($("#btnRegister"), "click", async () => {
-    authMsg.textContent = "";
-    const email = authEmail.value.trim();
-    const pass = authPass.value;
-    const name = authName.value.trim() || "مستخدم";
-    try {
-      const cred = await auth.createUserWithEmailAndPassword(email, pass);
-      await cred.user.updateProfile({ displayName: name });
-      await db.collection("users").doc(cred.user.uid).set({
-        displayName: name,
-        email,
-        emailVerified: !!cred.user.emailVerified,
-        reputationScore: 0,
-        createdAt: firebase.firestore.FieldValue.serverTimestamp()
-      });
-      hide(modalAuth);
-    } catch (e) {
-      authMsg.textContent = e.message;
-    }
-  });
+async function logoutUser() {
+  try {
+    await auth.signOut();
+    toast("تم تسجيل الخروج");
+  } catch (err) {
+    console.error(err);
+  }
+}
 
-  on($("#btnSubmitReport"), "click", async () => {
-    addMsg.textContent = "";
-    const text = reportText.value.trim();
-    const type = reportType.value;
+/* ================================
+   Reports Subscription
+================================ */
+function subscribeReports() {
+  const cutoff = Date.now() - (MAX_REPORT_FETCH_HOURS * 60 * 60 * 1000);
 
-    if (!currentUser) { addMsg.textContent = "يجب تسجيل الدخول."; return; }
-    if (text.length < 3) { addMsg.textContent = "الوصف قصير جدًا."; return; }
-    if (!currentPos) await locate();
-    if (!currentPos) { addMsg.textContent = "لم يتم تحديد موقعك بعد."; return; }
+  db.collection(REPORT_COLLECTION)
+    .where("createdAt", ">=", cutoff)
+    .orderBy("createdAt", "desc")
+    .onSnapshot((snap) => {
+      reports = snap.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
 
-    try {
-      await db.collection("reports").add({
-        userId: currentUser.uid,
-        userName: currentUser.displayName || currentUser.email || "مستخدم",
-        type,
-        text,
-        location: new firebase.firestore.GeoPoint(currentPos.lat, currentPos.lng),
-        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-        yesCount: 0,
-        noCount: 0,
-        trustScore: 0,
-        status: "new"
-      });
+      cleanupExpiredLocally();
+      syncMarkers();
+      renderAll();
+      checkNearbyAlerts();
+    }, (err) => {
+      console.error(err);
+      setStatus("حدث خطأ أثناء تحميل البلاغات.");
+    });
+}
 
-      reportText.value = "";
-      hide(modalAdd);
-      await refreshFeed();
-    } catch (e) {
-      addMsg.textContent = e.message;
-    }
-  });
+function cleanupExpiredLocally() {
+  const now = Date.now();
+  reports = reports.filter(r => (r.expiresAt || 0) > now && r.status !== "closed");
+}
 
-  // Feed
-  async function refreshFeed() {
-    feedEl.innerHTML = "";
-    const radiusMeters = parseInt(radiusEl.value, 10) || 500;
-    const typeFilter = typeFilterEl.value || "all";
+/* ================================
+   Add Report
+================================ */
+function openAddModal() {
+  if (!currentUser) {
+    modalAuth.classList.remove("hidden");
+    authMsg.textContent = "يجب تسجيل الدخول قبل إضافة بلاغ.";
+    return;
+  }
 
-    if (!currentPos) await locate();
-    if (!currentPos) {
-      feedEl.innerHTML = `<div class="post"><div class="small">لا يمكن عرض البلاغات دون موقع.</div></div>`;
-      return;
-    }
+  if (!userPosition) {
+    toast("انتظر حتى يتم تحديد موقعك أولاً");
+    return;
+  }
 
-    try {
-      const snap = await db.collection("reports")
-        .orderBy("createdAt", "desc")
-        .limit(100)
-        .get();
+  addMsg.textContent = "";
+  modalAdd.classList.remove("hidden");
+}
 
-      const all = [];
-      snap.forEach(d => all.push({ id: d.id, ...d.data() }));
+async function submitReport() {
+  if (!currentUser) {
+    addMsg.textContent = "يجب تسجيل الدخول.";
+    return;
+  }
 
-      const filtered = all
-        .map(r => {
-          const loc = r.location;
-          const d = distanceMeters(currentPos.lat, currentPos.lng, loc.latitude, loc.longitude);
-          return { ...r, distanceMeters: d };
-        })
-        .filter(r => r.distanceMeters <= radiusMeters)
-        .filter(r => typeFilter === "all" ? true : r.type === typeFilter)
-        .sort((a, b) => {
-          if (a.distanceMeters !== b.distanceMeters) return a.distanceMeters - b.distanceMeters;
-          return (b.trustScore || 0) - (a.trustScore || 0);
-        });
+  if (!userPosition) {
+    addMsg.textContent = "الموقع غير متاح بعد.";
+    return;
+  }
 
-      lastRenderedReports = filtered;
+  const type = reportType.value;
+  const text = reportText.value.trim();
+  const ttlMinutes = Number(reportTTL.value || 60);
+  const directionMode = reportDirectionMode.value;
 
-      if (filtered.length === 0) {
-        feedEl.innerHTML = `<div class="post"><div class="small">لا توجد بلاغات ضمن النطاق المحدد.</div></div>`;
-      } else {
-        filtered.forEach(r => feedEl.appendChild(renderPost(r)));
+  if (!type) {
+    addMsg.textContent = "اختر نوع البلاغ.";
+    return;
+  }
+
+  const now = Date.now();
+
+  const data = {
+    type,
+    text,
+    lat: userPosition.lat,
+    lng: userPosition.lng,
+    geohint: `${userPosition.lat.toFixed(3)},${userPosition.lng.toFixed(3)}`,
+    createdAt: now,
+    expiresAt: now + ttlMinutes * 60 * 1000,
+    status: "active",
+    userId: currentUser.uid,
+    userName: currentUser.displayName || currentUser.email || "مستخدم",
+    confirmations: 0,
+    dismissals: 0,
+    directionMode,
+    heading: directionMode === "current" && Number.isFinite(userPosition.heading)
+      ? userPosition.heading
+      : null
+  };
+
+  try {
+    await db.collection(REPORT_COLLECTION).add(data);
+    addMsg.textContent = "تم نشر البلاغ بنجاح.";
+    reportText.value = "";
+    modalAdd.classList.add("hidden");
+    toast("تم نشر البلاغ");
+  } catch (err) {
+    console.error(err);
+    addMsg.textContent = "تعذر نشر البلاغ.";
+  }
+}
+
+/* ================================
+   Render
+================================ */
+function renderAll() {
+  renderFeed();
+  renderNearbyFeed();
+  updateStatusSummary();
+}
+
+function renderFeed() {
+  const filtered = getFilteredReports(false);
+  if (!filtered.length) {
+    feedEl.innerHTML = `<div class="empty">لا توجد بلاغات مطابقة حاليًا.</div>`;
+    return;
+  }
+
+  feedEl.innerHTML = filtered.map(reportCardHTML).join("");
+  bindFeedActions(feedEl);
+}
+
+function renderNearbyFeed() {
+  const filtered = getFilteredReports(true);
+  if (!filtered.length) {
+    nearbyFeedEl.innerHTML = `<div class="empty">لا توجد بلاغات قريبة الآن.</div>`;
+    return;
+  }
+
+  nearbyFeedEl.innerHTML = filtered.map(reportCardHTML).join("");
+  bindFeedActions(nearbyFeedEl);
+}
+
+function getFilteredReports(nearbyOnly = false) {
+  const radius = Number(radiusEl.value || DEFAULT_RADIUS);
+  const typeFilter = typeFilterEl.value;
+
+  let list = reports
+    .filter(r => {
+      if (typeFilter !== "all" && r.type !== typeFilter) return false;
+      if (nearbyOnly && userPosition) {
+        const d = haversine(userPosition.lat, userPosition.lng, r.lat, r.lng);
+        return d <= radius;
       }
+      return true;
+    })
+    .map(r => ({
+      ...r,
+      distance: userPosition ? haversine(userPosition.lat, userPosition.lng, r.lat, r.lng) : null
+    }))
+    .sort((a, b) => {
+      if (userPosition && a.distance != null && b.distance != null) {
+        return a.distance - b.distance;
+      }
+      return (b.createdAt || 0) - (a.createdAt || 0);
+    });
 
-      renderMapMarkers(filtered);
-    } catch (e) {
-      statusEl.textContent = "خطأ تحميل البلاغات: " + e.message;
+  return list;
+}
+
+function reportCardHTML(r) {
+  const createdAtText = relativeTime(r.createdAt);
+  const expiresAtText = relativeTime(r.expiresAt);
+  const distanceText = r.distance != null ? `${Math.round(r.distance)}م` : "—";
+  const text = escapeHtml(r.text || "بدون وصف إضافي");
+
+  return `
+    <div class="card">
+      <div class="card-top">
+        <div class="type-chip chip-${escapeClassName(r.type)}">${escapeHtml(r.type)}</div>
+        <div class="meta">${distanceText}</div>
+      </div>
+
+      <div class="meta">
+        بواسطة ${escapeHtml(r.userName || "مستخدم")} • منذ ${createdAtText} • ينتهي ${expiresAtText}
+      </div>
+
+      <div class="card-text">${text}</div>
+
+      <div class="meta">
+        تأكيدات: ${r.confirmations || 0} • لم يعد موجودًا: ${r.dismissals || 0}
+      </div>
+
+      <div class="card-bottom">
+        <button class="mini-btn info" data-go="${r.id}">عرض على الخريطة</button>
+        <button class="mini-btn success" data-confirm="${r.id}">تأكيد البلاغ</button>
+        <button class="mini-btn warn" data-dismiss="${r.id}">لم يعد موجودًا</button>
+      </div>
+    </div>
+  `;
+}
+
+function bindFeedActions(root) {
+  root.querySelectorAll("[data-go]").forEach(btn => {
+    btn.onclick = () => focusReport(btn.dataset.go);
+  });
+
+  root.querySelectorAll("[data-confirm]").forEach(btn => {
+    btn.onclick = () => confirmReport(btn.dataset.confirm);
+  });
+
+  root.querySelectorAll("[data-dismiss]").forEach(btn => {
+    btn.onclick = () => dismissReport(btn.dataset.dismiss);
+  });
+}
+
+function updateStatusSummary() {
+  const allCount = reports.length;
+  const nearbyCount = getFilteredReports(true).length;
+  statusEl.textContent = userPosition
+    ? `إجمالي البلاغات النشطة: ${allCount} • القريبة منك: ${nearbyCount}`
+    : `إجمالي البلاغات النشطة: ${allCount}`;
+}
+
+/* ================================
+   Markers
+================================ */
+function syncMarkers() {
+  const seen = new Set();
+
+  for (const r of reports) {
+    seen.add(r.id);
+
+    let marker = markerMap.get(r.id);
+    const latlng = [r.lat, r.lng];
+
+    if (!marker) {
+      marker = L.marker(latlng, {
+        icon: L.divIcon({
+          className: "custom-report-marker",
+          html: markerHTML(r.type),
+          iconSize: [28, 28],
+          iconAnchor: [14, 28],
+          popupAnchor: [0, -26]
+        })
+      });
+
+      marker.bindPopup(`
+        <div style="direction:rtl;text-align:right;min-width:220px">
+          <strong>${escapeHtml(r.type)}</strong><br>
+          ${escapeHtml(r.text || "بدون وصف")}<br><br>
+          <small>بواسطة: ${escapeHtml(r.userName || "مستخدم")}</small>
+        </div>
+      `);
+
+      marker.addTo(map);
+      markerMap.set(r.id, marker);
+    } else {
+      marker.setLatLng(latlng);
     }
   }
 
-  function renderPost(r) {
-    const el = document.createElement("div");
-    el.className = "post";
+  for (const [id, marker] of markerMap.entries()) {
+    if (!seen.has(id)) {
+      map.removeLayer(marker);
+      markerMap.delete(id);
+    }
+  }
+}
 
-    const yes = r.yesCount || 0;
-    const no = r.noCount || 0;
-    const trust = r.trustScore ?? (yes - no);
+function markerHTML(type) {
+  const emojiMap = {
+    "زحمة": "🚗",
+    "حفرة": "🕳️",
+    "أعمال بناء": "🚧",
+    "حادث": "⚠️",
+    "إغلاق طريق": "⛔",
+    "جسم خطر": "📛",
+    "أخرى": "📍"
+  };
 
-    el.innerHTML = `
-      <div class="post-head">
-        <div>
-          <span class="badge">📌 ${escapeHtml(r.type)}</span>
-          <span class="badge">📍 ${r.distanceMeters}م</span>
-          <span class="badge">✅ ${yes} | ❌ ${no} | 🧭 ${trust}</span>
-        </div>
-        <div class="meta">بواسطة: ${escapeHtml(r.userName || "مستخدم")}</div>
-      </div>
+  return `
+    <div style="
+      width:28px;height:28px;border-radius:50%;
+      background:#0f172a;border:2px solid rgba(255,255,255,.25);
+      display:flex;align-items:center;justify-content:center;
+      box-shadow:0 8px 18px rgba(0,0,0,.35);
+      font-size:15px;
+    ">${emojiMap[type] || "📍"}</div>
+  `;
+}
 
-      <div class="post-text">${escapeHtml(r.text)}</div>
+function focusReport(id) {
+  const report = reports.find(r => r.id === id);
+  if (!report) return;
+  map.setView([report.lat, report.lng], 17);
+  const marker = markerMap.get(id);
+  if (marker) marker.openPopup();
+  toast(`تم التركيز على بلاغ: ${report.type}`);
+}
 
-      <div class="post-actions">
-        <button class="btn" data-openmap="${r.id}">عرض على الخريطة</button>
-        <button class="btn primary" data-vote="yes" data-id="${r.id}">صادق (${yes})</button>
-        <button class="btn danger" data-vote="no" data-id="${r.id}">كاذب (${no})</button>
-      </div>
+/* ================================
+   Confirm / Dismiss
+================================ */
+async function confirmReport(id) {
+  try {
+    await db.collection(REPORT_COLLECTION).doc(id).update({
+      confirmations: firebase.firestore.FieldValue.increment(1)
+    });
+    toast("تم تأكيد البلاغ");
+  } catch (err) {
+    console.error(err);
+    toast("تعذر تأكيد البلاغ");
+  }
+}
 
-      <div class="small" data-err style="margin-top:8px; opacity:.85;"></div>
+async function dismissReport(id) {
+  try {
+    await db.collection(REPORT_COLLECTION).doc(id).update({
+      dismissals: firebase.firestore.FieldValue.increment(1)
+    });
+    toast("تم تسجيل أن البلاغ لم يعد موجودًا");
+  } catch (err) {
+    console.error(err);
+    toast("تعذر تحديث البلاغ");
+  }
+}
+
+/* ================================
+   Alert Logic
+   - ضمن 700 متر
+   - تكرار كل 200 متر
+   - إيقاف بعد التجاوز
+================================ */
+function checkNearbyAlerts() {
+  if (!userPosition || !reports.length) {
+    updateActiveAlertBox(null);
+    return;
+  }
+
+  const alertCandidates = reports
+    .map(r => ({
+      ...r,
+      distance: haversine(userPosition.lat, userPosition.lng, r.lat, r.lng)
+    }))
+    .filter(r => r.distance <= 700)
+    .filter(matchesDirectionIfNeeded)
+    .sort((a, b) => a.distance - b.distance);
+
+  if (!alertCandidates.length) {
+    updateActiveAlertBox(null);
+    return;
+  }
+
+  const nearest = alertCandidates[0];
+  updateActiveAlertBox(nearest);
+
+  for (const report of alertCandidates) {
+    processProgressiveAlert(report);
+  }
+}
+
+function matchesDirectionIfNeeded(report) {
+  if (report.directionMode !== "current") return true;
+  if (!Number.isFinite(report.heading)) return true;
+  if (!Number.isFinite(userPosition?.heading)) return true;
+
+  const diff = angleDiff(userPosition.heading, report.heading);
+  return diff <= 65;
+}
+
+function processProgressiveAlert(report) {
+  const now = Date.now();
+  const distance = report.distance;
+
+  let st = reportAlertState.get(report.id);
+  if (!st) {
+    st = {
+      lastBand: null,
+      passed: false,
+      minDistance: Infinity,
+      lastDistance: Infinity,
+      enteredNear: false,
+      lastSpokenAt: 0
+    };
+    reportAlertState.set(report.id, st);
+  }
+
+  if (st.passed) return;
+
+  if (distance < st.minDistance) {
+    st.minDistance = distance;
+  }
+
+  if (distance <= 700) {
+    st.enteredNear = true;
+  }
+
+  // منطق التجاوز:
+  // إذا اقترب المستخدم جدًا ثم بدأت المسافة تكبر بشكل واضح نعتبره تجاوزه
+  if (st.enteredNear && st.minDistance <= 60 && distance > 120 && distance > st.lastDistance + 20) {
+    st.passed = true;
+    st.lastDistance = distance;
+    return;
+  }
+
+  const band = getDistanceBand(distance);
+
+  // نمنع تكرار الكلام السريع جدًا
+  const canSpeak = now - st.lastSpokenAt > 4000;
+
+  if (band !== null && band !== st.lastBand && canSpeak) {
+    st.lastBand = band;
+    st.lastSpokenAt = now;
+    speakAlert(report, distance);
+  }
+
+  st.lastDistance = distance;
+}
+
+function getDistanceBand(distance) {
+  if (distance <= 100) return 100;
+  if (distance <= 300) return 300;
+  if (distance <= 500) return 500;
+  if (distance <= 700) return 700;
+  return null;
+}
+
+function updateActiveAlertBox(report) {
+  if (!report) {
+    activeAlertBox.innerHTML = `
+      <div class="alert-title">لا يوجد تنبيه حالي</div>
+      <div class="alert-sub">سيظهر هنا أقرب بلاغ مهم أمامك</div>
     `;
-
-    const errEl = el.querySelector('[data-err]');
-
-    on(el.querySelector('[data-openmap]'), "click", () => {
-      document.querySelectorAll(".tab").forEach(x => x.classList.remove("active"));
-      document.querySelector('.tab[data-tab="map"]').classList.add("active");
-      hide($("#tab-feed")); show($("#tab-map"));
-      ensureMap();
-      const loc = r.location;
-      map.setView([loc.latitude, loc.longitude], 18);
-      renderMapMarkers(lastRenderedReports);
-    });
-
-    el.querySelectorAll("[data-vote]").forEach(btn => {
-      on(btn, "click", async () => {
-        errEl.textContent = "";
-        if (!currentUser) { show(modalAuth); return; }
-        if (votingLock) return;
-
-        votingLock = true;
-        btn.disabled = true;
-
-        try {
-          await castVote(r.id, btn.dataset.vote);
-          await refreshFeed();
-        } catch (e) {
-          const msg = e?.message || String(e);
-          errEl.textContent = "خطأ التصويت: " + msg;
-          statusEl.textContent = "خطأ التصويت: " + msg;
-        } finally {
-          votingLock = false;
-          btn.disabled = false;
-        }
-      });
-    });
-
-    return el;
+    return;
   }
 
-  async function castVote(reportId, vote) {
-    const reportRef = db.collection("reports").doc(reportId);
-    const voteRef = reportRef.collection("votes").doc(currentUser.uid);
+  activeAlertBox.innerHTML = `
+    <div class="alert-title">تنبيه قريب: ${escapeHtml(report.type)}</div>
+    <div class="alert-sub">
+      ${Math.round(report.distance)} متر • ${escapeHtml(report.text || "بدون وصف")} 
+    </div>
+  `;
+}
 
-    await db.runTransaction(async (tx) => {
-      const reportSnap = await tx.get(reportRef);
-      if (!reportSnap.exists) throw new Error("البلاغ غير موجود.");
+function speakAlert(report, distance) {
+  const rounded = Math.max(0, Math.round(distance / 10) * 10);
+  const message = `تنبيه، ${report.type} أمامك بعد ${rounded} متر`;
 
-      const report = reportSnap.data();
+  toast(message);
 
-      const prevSnap = await tx.get(voteRef);
-      const prevVote = prevSnap.exists ? prevSnap.data().vote : null;
+  if (!soundEnabled) return;
 
-      let yes = report.yesCount || 0;
-      let no = report.noCount || 0;
+  tryBeep();
 
-      if (prevVote === "yes") yes = Math.max(0, yes - 1);
-      if (prevVote === "no") no = Math.max(0, no - 1);
-
-      if (vote === "yes") yes += 1;
-      if (vote === "no") no += 1;
-
-      const trustScore = yes - no;
-
-      tx.set(voteRef, { vote, createdAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true });
-      tx.set(reportRef, { yesCount: yes, noCount: no, trustScore }, { merge: true });
-    });
+  if ("speechSynthesis" in window) {
+    window.speechSynthesis.cancel();
+    const utter = new SpeechSynthesisUtterance(message);
+    utter.lang = "ar";
+    utter.rate = 1;
+    utter.pitch = 1;
+    window.speechSynthesis.speak(utter);
   }
+}
 
-})();
+/* ================================
+   Sound
+================================ */
+function toggleSound() {
+  soundEnabled = !soundEnabled;
+  btnSound.textContent = soundEnabled ? "🔊 الصوت مفعل" : "🔇 الصوت متوقف";
+  toast(soundEnabled ? "تم تفعيل الصوت" : "تم إيقاف الصوت");
+}
+
+function ensureSpeechReady() {
+  if (!("speechSynthesis" in window)) return;
+  speechReady = true;
+}
+
+function tryBeep() {
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return;
+    const ctx = new Ctx();
+
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    osc.type = "sine";
+    osc.frequency.value = 880;
+    gain.gain.setValueAtTime(0.001, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.14, ctx.currentTime + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.18);
+
+    osc.start();
+    osc.stop(ctx.currentTime + 0.19);
+  } catch (e) {
+    console.warn("beep failed", e);
+  }
+}
+
+/* ================================
+   Helpers
+================================ */
+function haversine(lat1, lng1, lat2, lng2) {
+  const R = 6371000;
+  const toRad = d => d * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+    Math.sin(dLng / 2) ** 2;
+
+  return 2 * R * Math.asin(Math.sqrt(a));
+}
+
+function angleDiff(a, b) {
+  const diff = Math.abs(a - b) % 360;
+  return diff > 180 ? 360 - diff : diff;
+}
+
+function relativeTime(ts) {
+  if (!ts) return "—";
+  const diff = ts - Date.now();
+  const abs = Math.abs(diff);
+
+  const min = Math.round(abs / 60000);
+  const hr = Math.round(abs / 3600000);
+  const day = Math.round(abs / 86400000);
+
+  let text;
+  if (min < 1) text = "الآن";
+  else if (min < 60) text = `${min} دقيقة`;
+  else if (hr < 24) text = `${hr} ساعة`;
+  else text = `${day} يوم`;
+
+  return diff >= 0 ? `بعد ${text}` : `${text}`;
+}
+
+function setStatus(msg) {
+  statusEl.textContent = msg;
+}
+
+function escapeHtml(str = "") {
+  return String(str)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function escapeClassName(str = "") {
+  return String(str).replace(/\s/g, "\\ ");
+}
+
+function toast(msg) {
+  toastEl.textContent = msg;
+  toastEl.classList.remove("hidden");
+  clearTimeout(toastEl._t);
+  toastEl._t = setTimeout(() => {
+    toastEl.classList.add("hidden");
+  }, 3000);
+}
