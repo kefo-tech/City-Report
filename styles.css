@@ -60,7 +60,6 @@ body{
   height:100%;
 }
 
-/* الشريط العلوي الصغير */
 .top-mini-bar{
   position:absolute;
   top:12px;
@@ -124,7 +123,6 @@ body{
   pointer-events:auto;
 }
 
-/* القائمة المصغرة */
 .mini-menu{
   position:absolute;
   top:74px;
@@ -155,7 +153,6 @@ body{
   font-size:.95rem;
 }
 
-/* شريط حالة الموقع */
 .live-location-pill{
   position:absolute;
   top:84px;
@@ -189,7 +186,6 @@ body{
   100%{transform:scale(1);opacity:1}
 }
 
-/* صندوق التنبيه */
 .alert-box{
   position:absolute;
   top:136px;
@@ -217,7 +213,6 @@ body{
   font-size:.94rem;
 }
 
-/* زر الإبلاغ */
 .fab{
   position:absolute;
   bottom:22px;
@@ -237,7 +232,6 @@ body{
   border:4px solid rgba(255,255,255,0.12);
 }
 
-/* اللوحة الجانبية */
 .side-panel{
   height:100vh;
   background:rgba(8,17,30,0.98);
@@ -300,7 +294,6 @@ textarea{
   padding:14px;
 }
 
-/* بطاقات البلاغات */
 .card{
   background:rgba(255,255,255,0.05);
   border:1px solid var(--stroke);
@@ -377,7 +370,6 @@ textarea{
   color:#bae6fd;
 }
 
-/* أزرار عامة */
 .btn{
   border:none;
   border-radius:14px;
@@ -411,7 +403,6 @@ textarea{
   padding:25px 10px;
 }
 
-/* النوافذ المنبثقة */
 .modal{
   position:fixed;
   inset:0;
@@ -457,7 +448,6 @@ textarea{
   font-size:.92rem;
 }
 
-/* Toast */
 .toast{
   position:fixed;
   bottom:16px;
@@ -472,7 +462,6 @@ textarea{
   max-width:320px;
 }
 
-/* تحسينات لواجهة Leaflet */
 .leaflet-control-zoom a{
   color:#0f172a !important;
   font-weight:800;
@@ -488,7 +477,6 @@ textarea{
   background:#0b1220;
 }
 
-/* الجوال */
 @media (max-width: 980px){
   .app-shell{
     grid-template-columns:1fr;
