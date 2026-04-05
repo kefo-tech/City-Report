@@ -6,8 +6,8 @@
 /* ================================
    Firebase Config
 ================================ */
- const firebaseConfig = {
-    apiKey: "AIzaSyDBpj59oQ4BbSCLQi117Rn-gZjZ7awujV4",
+const firebaseConfig = {
+  apiKey: "AIzaSyDBpj59oQ4BbSCLQi117Rn-gZjZ7awujV4",
     authDomain: "report-77313.firebaseapp.com",
     projectId: "report-77313",
     storageBucket: "report-77313.appspot.com",
@@ -24,7 +24,6 @@ const db = firebase.firestore();
 ================================ */
 const $ = (id) => document.getElementById(id);
 
-const btnAdd = $("btnAdd");
 const btnQuickAdd = $("btnQuickAdd");
 const btnLocate = $("btnLocate");
 const btnRefresh = $("btnRefresh");
@@ -34,6 +33,11 @@ const btnLogin = $("btnLogin");
 const btnRegister = $("btnRegister");
 const btnSubmitReport = $("btnSubmitReport");
 const btnSound = $("btnSound");
+
+const btnMenu = $("btnMenu");
+const miniMenu = $("miniMenu");
+const btnTogglePanel = $("btnTogglePanel");
+const sidePanel = $("sidePanel");
 
 const modalAuth = $("modalAuth");
 const modalAdd = $("modalAdd");
@@ -51,11 +55,12 @@ const addMsg = $("addMsg");
 
 const statusEl = $("status");
 const feedEl = $("feed");
-const nearbyFeedEl = $("nearbyFeed");
 const radiusEl = $("radius");
 const typeFilterEl = $("typeFilter");
 const liveLocationText = $("liveLocationText");
 const activeAlertBox = $("activeAlertBox");
+const alertTitle = $("alertTitle");
+const alertSub = $("alertSub");
 const toastEl = $("toast");
 
 /* ================================
@@ -72,7 +77,6 @@ let currentHeading = null;
 let reports = [];
 let markerMap = new Map();
 let soundEnabled = true;
-let speechReady = false;
 
 const reportAlertState = new Map();
 /*
@@ -96,44 +100,63 @@ const DEFAULT_RADIUS = 700;
 ================================ */
 initMap();
 bindUI();
-ensureSpeechReady();
 initAuth();
 subscribeReports();
+setupProtection();
 
 /* ================================
    UI Bindings
 ================================ */
 function bindUI() {
-  btnAdd.addEventListener("click", openAddModal);
-  btnQuickAdd.addEventListener("click", openAddModal);
+  btnQuickAdd?.addEventListener("click", openAddModal);
 
-  btnLocate.addEventListener("click", centerOnUser);
+  btnLocate?.addEventListener("click", () => {
+    centerOnUser();
+    miniMenu?.classList.add("hidden");
+  });
 
-  btnRefresh.addEventListener("click", () => {
+  btnRefresh?.addEventListener("click", () => {
     renderAll();
     toast("تم تحديث الواجهة");
   });
 
-  btnAuth.addEventListener("click", () => modalAuth.classList.remove("hidden"));
-  btnLogout.addEventListener("click", logoutUser);
+  btnAuth?.addEventListener("click", () => {
+    miniMenu?.classList.add("hidden");
+    modalAuth?.classList.remove("hidden");
+  });
 
-  btnLogin.addEventListener("click", loginUser);
-  btnRegister.addEventListener("click", registerUser);
-  btnSubmitReport.addEventListener("click", submitReport);
+  btnLogout?.addEventListener("click", () => {
+    miniMenu?.classList.add("hidden");
+    logoutUser();
+  });
 
-  btnSound.addEventListener("click", toggleSound);
+  btnLogin?.addEventListener("click", loginUser);
+  btnRegister?.addEventListener("click", registerUser);
+  btnSubmitReport?.addEventListener("click", submitReport);
 
-  radiusEl.addEventListener("change", renderAll);
-  typeFilterEl.addEventListener("change", renderAll);
+  btnSound?.addEventListener("click", () => {
+    toggleSound();
+    miniMenu?.classList.add("hidden");
+  });
 
-  document.querySelectorAll(".tab").forEach(btn => {
-    btn.addEventListener("click", () => {
-      document.querySelectorAll(".tab").forEach(x => x.classList.remove("active"));
-      btn.classList.add("active");
-      const tab = btn.dataset.tab;
-      $("tab-feed").classList.toggle("hidden", tab !== "feed");
-      $("tab-nearby").classList.toggle("hidden", tab !== "nearby");
-    });
+  btnMenu?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    miniMenu?.classList.toggle("hidden");
+  });
+
+  btnTogglePanel?.addEventListener("click", () => {
+    sidePanel?.classList.toggle("hidden-mobile");
+    miniMenu?.classList.add("hidden");
+  });
+
+  radiusEl?.addEventListener("change", renderAll);
+  typeFilterEl?.addEventListener("change", renderAll);
+
+  document.addEventListener("click", (e) => {
+    if (!miniMenu || !btnMenu) return;
+    if (!miniMenu.contains(e.target) && e.target !== btnMenu) {
+      miniMenu.classList.add("hidden");
+    }
   });
 }
 
@@ -214,7 +237,7 @@ function onLocationUpdate(pos) {
 function onLocationError(err) {
   console.error(err);
   setStatus("تعذر الوصول إلى الموقع. تأكد من إعطاء الإذن.");
-  liveLocationText.textContent = "تعذر تحديد الموقع";
+  if (liveLocationText) liveLocationText.textContent = "تعذر تحديد الموقع";
 }
 
 function centerOnUser() {
@@ -233,53 +256,52 @@ function initAuth() {
     currentUser = user || null;
 
     if (currentUser) {
-      btnAuth.classList.add("hidden");
-      btnLogout.classList.remove("hidden");
-      authMsg.textContent = "";
-      modalAuth.classList.add("hidden");
-      toast(`أهلاً ${currentUser.email}`);
+      btnAuth?.classList.add("hidden");
+      btnLogout?.classList.remove("hidden");
+      if (authMsg) authMsg.textContent = "";
+      modalAuth?.classList.add("hidden");
     } else {
-      btnAuth.classList.remove("hidden");
-      btnLogout.classList.add("hidden");
+      btnAuth?.classList.remove("hidden");
+      btnLogout?.classList.add("hidden");
     }
   });
 }
 
 async function loginUser() {
-  const email = authEmail.value.trim();
-  const password = authPass.value.trim();
+  const email = authEmail?.value.trim();
+  const password = authPass?.value.trim();
 
   if (!email || !password) {
-    authMsg.textContent = "أدخل البريد وكلمة المرور.";
+    if (authMsg) authMsg.textContent = "أدخل البريد وكلمة المرور.";
     return;
   }
 
   try {
     await auth.signInWithEmailAndPassword(email, password);
-    authMsg.textContent = "تم تسجيل الدخول.";
+    if (authMsg) authMsg.textContent = "تم تسجيل الدخول.";
   } catch (err) {
     console.error(err);
-    authMsg.textContent = err.message;
+    if (authMsg) authMsg.textContent = err.message;
   }
 }
 
 async function registerUser() {
-  const email = authEmail.value.trim();
-  const password = authPass.value.trim();
-  const name = authName.value.trim();
+  const email = authEmail?.value.trim();
+  const password = authPass?.value.trim();
+  const name = authName?.value.trim();
 
   if (!email || !password || !name) {
-    authMsg.textContent = "أدخل الاسم والبريد وكلمة المرور.";
+    if (authMsg) authMsg.textContent = "أدخل الاسم والبريد وكلمة المرور.";
     return;
   }
 
   try {
     const cred = await auth.createUserWithEmailAndPassword(email, password);
     await cred.user.updateProfile({ displayName: name });
-    authMsg.textContent = "تم إنشاء الحساب بنجاح.";
+    if (authMsg) authMsg.textContent = "تم إنشاء الحساب بنجاح.";
   } catch (err) {
     console.error(err);
-    authMsg.textContent = err.message;
+    if (authMsg) authMsg.textContent = err.message;
   }
 }
 
@@ -327,8 +349,8 @@ function cleanupExpiredLocally() {
 ================================ */
 function openAddModal() {
   if (!currentUser) {
-    modalAuth.classList.remove("hidden");
-    authMsg.textContent = "يجب تسجيل الدخول قبل إضافة بلاغ.";
+    modalAuth?.classList.remove("hidden");
+    if (authMsg) authMsg.textContent = "يجب تسجيل الدخول قبل إضافة بلاغ.";
     return;
   }
 
@@ -337,28 +359,28 @@ function openAddModal() {
     return;
   }
 
-  addMsg.textContent = "";
-  modalAdd.classList.remove("hidden");
+  if (addMsg) addMsg.textContent = "";
+  modalAdd?.classList.remove("hidden");
 }
 
 async function submitReport() {
   if (!currentUser) {
-    addMsg.textContent = "يجب تسجيل الدخول.";
+    if (addMsg) addMsg.textContent = "يجب تسجيل الدخول.";
     return;
   }
 
   if (!userPosition) {
-    addMsg.textContent = "الموقع غير متاح بعد.";
+    if (addMsg) addMsg.textContent = "الموقع غير متاح بعد.";
     return;
   }
 
-  const type = reportType.value;
-  const text = reportText.value.trim();
-  const ttlMinutes = Number(reportTTL.value || 60);
-  const directionMode = reportDirectionMode.value;
+  const type = reportType?.value;
+  const text = reportText?.value.trim();
+  const ttlMinutes = Number(reportTTL?.value || 60);
+  const directionMode = reportDirectionMode?.value;
 
   if (!type) {
-    addMsg.textContent = "اختر نوع البلاغ.";
+    if (addMsg) addMsg.textContent = "اختر نوع البلاغ.";
     return;
   }
 
@@ -385,13 +407,13 @@ async function submitReport() {
 
   try {
     await db.collection(REPORT_COLLECTION).add(data);
-    addMsg.textContent = "تم نشر البلاغ بنجاح.";
-    reportText.value = "";
-    modalAdd.classList.add("hidden");
+    if (addMsg) addMsg.textContent = "تم نشر البلاغ بنجاح.";
+    if (reportText) reportText.value = "";
+    modalAdd?.classList.add("hidden");
     toast("تم نشر البلاغ");
   } catch (err) {
     console.error(err);
-    addMsg.textContent = "تعذر نشر البلاغ.";
+    if (addMsg) addMsg.textContent = "تعذر نشر البلاغ.";
   }
 }
 
@@ -400,14 +422,16 @@ async function submitReport() {
 ================================ */
 function renderAll() {
   renderFeed();
-  renderNearbyFeed();
   updateStatusSummary();
 }
 
 function renderFeed() {
-  const filtered = getFilteredReports(false);
+  if (!feedEl) return;
+
+  const filtered = getFilteredReports(true);
+
   if (!filtered.length) {
-    feedEl.innerHTML = `<div class="empty">لا توجد بلاغات مطابقة حاليًا.</div>`;
+    feedEl.innerHTML = `<div class="empty">لا توجد بلاغات قريبة مطابقة حاليًا.</div>`;
     return;
   }
 
@@ -415,20 +439,9 @@ function renderFeed() {
   bindFeedActions(feedEl);
 }
 
-function renderNearbyFeed() {
-  const filtered = getFilteredReports(true);
-  if (!filtered.length) {
-    nearbyFeedEl.innerHTML = `<div class="empty">لا توجد بلاغات قريبة الآن.</div>`;
-    return;
-  }
-
-  nearbyFeedEl.innerHTML = filtered.map(reportCardHTML).join("");
-  bindFeedActions(nearbyFeedEl);
-}
-
 function getFilteredReports(nearbyOnly = false) {
-  const radius = Number(radiusEl.value || DEFAULT_RADIUS);
-  const typeFilter = typeFilterEl.value;
+  const radius = Number(radiusEl?.value || DEFAULT_RADIUS);
+  const typeFilter = typeFilterEl?.value || "all";
 
   let list = reports
     .filter(r => {
@@ -500,8 +513,11 @@ function bindFeedActions(root) {
 }
 
 function updateStatusSummary() {
+  if (!statusEl) return;
+
   const allCount = reports.length;
   const nearbyCount = getFilteredReports(true).length;
+
   statusEl.textContent = userPosition
     ? `إجمالي البلاغات النشطة: ${allCount} • القريبة منك: ${nearbyCount}`
     : `إجمالي البلاغات النشطة: ${allCount}`;
@@ -566,9 +582,14 @@ function markerHTML(type) {
 
   return `
     <div style="
-      width:28px;height:28px;border-radius:50%;
-      background:#0f172a;border:2px solid rgba(255,255,255,.25);
-      display:flex;align-items:center;justify-content:center;
+      width:28px;
+      height:28px;
+      border-radius:50%;
+      background:#0f172a;
+      border:2px solid rgba(255,255,255,.25);
+      display:flex;
+      align-items:center;
+      justify-content:center;
       box-shadow:0 8px 18px rgba(0,0,0,.35);
       font-size:15px;
     ">${emojiMap[type] || "📍"}</div>
@@ -578,9 +599,16 @@ function markerHTML(type) {
 function focusReport(id) {
   const report = reports.find(r => r.id === id);
   if (!report) return;
+
   map.setView([report.lat, report.lng], 17);
+
   const marker = markerMap.get(id);
   if (marker) marker.openPopup();
+
+  if (window.innerWidth <= 980 && sidePanel) {
+    sidePanel.classList.add("hidden-mobile");
+  }
+
   toast(`تم التركيز على بلاغ: ${report.type}`);
 }
 
@@ -614,7 +642,7 @@ async function dismissReport(id) {
 /* ================================
    Alert Logic
    - ضمن 700 متر
-   - تكرار كل 200 متر
+   - تكرار تدريجي
    - إيقاف بعد التجاوز
 ================================ */
 function checkNearbyAlerts() {
@@ -681,8 +709,6 @@ function processProgressiveAlert(report) {
     st.enteredNear = true;
   }
 
-  // منطق التجاوز:
-  // إذا اقترب المستخدم جدًا ثم بدأت المسافة تكبر بشكل واضح نعتبره تجاوزه
   if (st.enteredNear && st.minDistance <= 60 && distance > 120 && distance > st.lastDistance + 20) {
     st.passed = true;
     st.lastDistance = distance;
@@ -690,8 +716,6 @@ function processProgressiveAlert(report) {
   }
 
   const band = getDistanceBand(distance);
-
-  // نمنع تكرار الكلام السريع جدًا
   const canSpeak = now - st.lastSpokenAt > 4000;
 
   if (band !== null && band !== st.lastBand && canSpeak) {
@@ -712,20 +736,22 @@ function getDistanceBand(distance) {
 }
 
 function updateActiveAlertBox(report) {
+  if (!activeAlertBox) return;
+
   if (!report) {
-    activeAlertBox.innerHTML = `
-      <div class="alert-title">لا يوجد تنبيه حالي</div>
-      <div class="alert-sub">سيظهر هنا أقرب بلاغ مهم أمامك</div>
-    `;
+    activeAlertBox.classList.add("hidden");
     return;
   }
 
-  activeAlertBox.innerHTML = `
-    <div class="alert-title">تنبيه قريب: ${escapeHtml(report.type)}</div>
-    <div class="alert-sub">
-      ${Math.round(report.distance)} متر • ${escapeHtml(report.text || "بدون وصف")} 
-    </div>
-  `;
+  activeAlertBox.classList.remove("hidden");
+
+  if (alertTitle) {
+    alertTitle.textContent = `تنبيه قريب: ${report.type}`;
+  }
+
+  if (alertSub) {
+    alertSub.textContent = `${Math.round(report.distance)} متر • ${report.text || "بدون وصف"}`;
+  }
 }
 
 function speakAlert(report, distance) {
@@ -753,21 +779,20 @@ function speakAlert(report, distance) {
 ================================ */
 function toggleSound() {
   soundEnabled = !soundEnabled;
-  btnSound.textContent = soundEnabled ? "🔊 الصوت مفعل" : "🔇 الصوت متوقف";
-  toast(soundEnabled ? "تم تفعيل الصوت" : "تم إيقاف الصوت");
-}
 
-function ensureSpeechReady() {
-  if (!("speechSynthesis" in window)) return;
-  speechReady = true;
+  if (btnSound) {
+    btnSound.textContent = soundEnabled ? "🔊 الصوت مفعل" : "🔇 الصوت متوقف";
+  }
+
+  toast(soundEnabled ? "تم تفعيل الصوت" : "تم إيقاف الصوت");
 }
 
 function tryBeep() {
   try {
     const Ctx = window.AudioContext || window.webkitAudioContext;
     if (!Ctx) return;
-    const ctx = new Ctx();
 
+    const ctx = new Ctx();
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
 
@@ -785,6 +810,32 @@ function tryBeep() {
   } catch (e) {
     console.warn("beep failed", e);
   }
+}
+
+/* ================================
+   Protection
+================================ */
+function setupProtection() {
+  document.addEventListener("contextmenu", (e) => e.preventDefault(), { passive: false });
+
+  document.addEventListener("selectstart", (e) => {
+    const tag = e.target?.tagName?.toLowerCase();
+    if (tag === "input" || tag === "textarea") return;
+    e.preventDefault();
+  }, { passive: false });
+
+  document.addEventListener("dragstart", (e) => e.preventDefault(), { passive: false });
+
+  let pressTimer = null;
+
+  document.addEventListener("touchstart", () => {
+    clearTimeout(pressTimer);
+    pressTimer = setTimeout(() => {}, 700);
+  }, { passive: true });
+
+  document.addEventListener("touchend", () => {
+    clearTimeout(pressTimer);
+  }, { passive: true });
 }
 
 /* ================================
@@ -828,7 +879,7 @@ function relativeTime(ts) {
 }
 
 function setStatus(msg) {
-  statusEl.textContent = msg;
+  if (statusEl) statusEl.textContent = msg;
 }
 
 function escapeHtml(str = "") {
@@ -845,8 +896,11 @@ function escapeClassName(str = "") {
 }
 
 function toast(msg) {
+  if (!toastEl) return;
+
   toastEl.textContent = msg;
   toastEl.classList.remove("hidden");
+
   clearTimeout(toastEl._t);
   toastEl._t = setTimeout(() => {
     toastEl.classList.add("hidden");
