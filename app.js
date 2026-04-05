@@ -1,6 +1,7 @@
 /************************************************
  * City Report - Near Reports Alerts
- * نسخة بدون تسجيل دخول + مدة ساعة ثابتة + زر إعادة توسيط
+ * نسخة بدون تسجيل دخول + مدة ساعة ثابتة
+ * + زر إعادة توسيط + Wake Lock
  ************************************************/
 
 /* ================================
@@ -28,6 +29,7 @@ const btnLocate = $("btnLocate");
 const btnRefresh = $("btnRefresh");
 const btnSubmitReport = $("btnSubmitReport");
 const btnSound = $("btnSound");
+const btnWakeLock = $("btnWakeLock");
 
 const btnMenu = $("btnMenu");
 const miniMenu = $("miniMenu");
@@ -57,7 +59,6 @@ let map;
 let userMarker = null;
 let userCircle = null;
 let watchId = null;
-let recenterBtn = null;
 
 let userPosition = null;
 let currentHeading = null;
@@ -65,23 +66,15 @@ let reports = [];
 let markerMap = new Map();
 let soundEnabled = true;
 
+let wakeLockSentinel = null;
+let wakeLockEnabled = false;
+
 const reportAlertState = new Map();
-/*
- لكل بلاغ:
- {
-   lastBand: number|null,
-   passed: boolean,
-   minDistance: number,
-   lastDistance: number,
-   enteredNear: boolean,
-   lastSpokenAt: number
- }
-*/
 
 const REPORT_COLLECTION = "road_reports";
 const MAX_REPORT_FETCH_HOURS = 24;
 const DEFAULT_RADIUS = 700;
-const FIXED_REPORT_TTL_MS = 60 * 60 * 1000; // ساعة واحدة ثابتة
+const FIXED_REPORT_TTL_MS = 60 * 60 * 1000;
 
 /* ================================
    Init
@@ -114,6 +107,11 @@ function bindUI() {
     miniMenu?.classList.add("hidden");
   });
 
+  btnWakeLock?.addEventListener("click", async () => {
+    await toggleWakeLock();
+    miniMenu?.classList.add("hidden");
+  });
+
   btnMenu?.addEventListener("click", (e) => {
     e.stopPropagation();
     miniMenu?.classList.toggle("hidden");
@@ -131,6 +129,12 @@ function bindUI() {
     if (!miniMenu || !btnMenu) return;
     if (!miniMenu.contains(e.target) && e.target !== btnMenu) {
       miniMenu.classList.add("hidden");
+    }
+  });
+
+  document.addEventListener("visibilitychange", async () => {
+    if (document.visibilityState === "visible" && wakeLockEnabled && !wakeLockSentinel) {
+      await requestWakeLock(true);
     }
   });
 }
@@ -168,9 +172,7 @@ function initMap() {
 
 function addRecenterControl() {
   const RecenterControl = L.Control.extend({
-    options: {
-      position: "bottomright"
-    },
+    options: { position: "bottomright" },
 
     onAdd: function () {
       const container = L.DomUtil.create("div", "leaflet-bar leaflet-control");
@@ -201,7 +203,6 @@ function addRecenterControl() {
         centerOnUser();
       });
 
-      recenterBtn = button;
       return container;
     }
   });
@@ -320,7 +321,7 @@ async function submitReport() {
   }
 
   const type = reportType?.value;
-  const text = reportText?.value.trim();
+  const text = reportText?.value.trim() || "";
 
   if (!type) {
     if (addMsg) addMsg.textContent = "اختر نوع البلاغ.";
@@ -581,9 +582,6 @@ async function dismissReport(id) {
 
 /* ================================
    Alert Logic
-   - ضمن 700 متر
-   - تكرار تدريجي
-   - إيقاف بعد التجاوز
 ================================ */
 function checkNearbyAlerts() {
   if (!userPosition || !reports.length) {
@@ -749,6 +747,86 @@ function tryBeep() {
     osc.stop(ctx.currentTime + 0.19);
   } catch (e) {
     console.warn("beep failed", e);
+  }
+}
+
+/* ================================
+   Wake Lock
+================================ */
+async function requestWakeLock(isRestore = false) {
+  if (!("wakeLock" in navigator)) {
+    if (btnWakeLock) btnWakeLock.textContent = "❌ غير مدعوم";
+    toast("المتصفح لا يدعم إبقاء الشاشة مضاءة");
+    return false;
+  }
+
+  try {
+    wakeLockSentinel = await navigator.wakeLock.request("screen");
+    wakeLockEnabled = true;
+
+    if (btnWakeLock) {
+      btnWakeLock.textContent = "🌙 إلغاء إبقاء الشاشة مضاءة";
+    }
+
+    if (!isRestore) {
+      toast("تم تفعيل إبقاء الشاشة مضاءة");
+    }
+
+    wakeLockSentinel.addEventListener("release", () => {
+      wakeLockSentinel = null;
+
+      if (wakeLockEnabled && document.visibilityState === "visible") {
+        requestWakeLock(true);
+        return;
+      }
+
+      wakeLockEnabled = false;
+      if (btnWakeLock) {
+        btnWakeLock.textContent = "🔆 إبقاء الشاشة مضاءة";
+      }
+      toast("تم إلغاء إبقاء الشاشة مضاءة");
+    });
+
+    return true;
+  } catch (err) {
+    console.error("Wake Lock error:", err);
+    wakeLockSentinel = null;
+
+    if (!isRestore) {
+      wakeLockEnabled = false;
+      if (btnWakeLock) btnWakeLock.textContent = "🔆 إبقاء الشاشة مضاءة";
+      toast("تعذر تفعيل إبقاء الشاشة مضاءة");
+    }
+
+    return false;
+  }
+}
+
+async function releaseWakeLock() {
+  try {
+    if (wakeLockSentinel) {
+      const sentinel = wakeLockSentinel;
+      wakeLockSentinel = null;
+      wakeLockEnabled = false;
+      await sentinel.release();
+    } else {
+      wakeLockEnabled = false;
+    }
+  } catch (err) {
+    console.error("Wake Lock release error:", err);
+  } finally {
+    if (btnWakeLock) {
+      btnWakeLock.textContent = "🔆 إبقاء الشاشة مضاءة";
+    }
+  }
+}
+
+async function toggleWakeLock() {
+  if (wakeLockEnabled) {
+    await releaseWakeLock();
+    toast("تم إلغاء إبقاء الشاشة مضاءة");
+  } else {
+    await requestWakeLock(false);
   }
 }
 
