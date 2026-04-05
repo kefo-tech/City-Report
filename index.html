@@ -7,59 +7,57 @@
   <meta name="theme-color" content="#0f172a"/>
   <meta name="description" content="منصة بلاغات طريق ذكية تعرض التنبيهات القريبة على الخريطة مع إنذار صوتي تدريجي حسب المسافة." />
 
-  <link rel="stylesheet" href="./styles.css?v=2">
+  <link rel="stylesheet" href="./styles.css?v=3">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 </head>
 
 <body>
-  <header class="topbar">
-    <div class="brand">
-      <div class="brand-badge"></div>
-      <div>
-        <div class="brand-title">منصة البلاغات القريبة</div>
-        <div class="brand-sub">تنبيه مروري محلي لحظي للسائقين</div>
-      </div>
-    </div>
-
-    <div class="actions">
-      <button id="btnSound" class="btn ghost">🔊 الصوت مفعل</button>
-      <button id="btnLocate" class="btn ghost">📍 موقعي</button>
-      <button id="btnAdd" class="btn primary">＋ بلاغ جديد</button>
-      <button id="btnAuth" class="btn">دخول</button>
-      <button id="btnLogout" class="btn danger hidden">خروج</button>
-    </div>
-  </header>
-
-  <main class="layout">
+  <main class="app-shell">
     <section class="map-shell">
       <div id="map" class="map"></div>
 
-      <div class="floating-status">
-        <div class="live-pill">
-          <span class="live-dot"></span>
-          <span id="liveLocationText">جاري تحديد الموقع…</span>
+      <!-- شريط علوي صغير -->
+      <div class="top-mini-bar">
+        <div class="brand-mini">
+          <div class="brand-dot"></div>
+          <div>
+            <div class="brand-mini-title">منصة البلاغات القريبة</div>
+            <div class="brand-mini-sub">تنبيه مروري لحظي</div>
+          </div>
         </div>
 
-        <div class="alert-box" id="activeAlertBox">
-          <div class="alert-title">لا يوجد تنبيه حالي</div>
-          <div class="alert-sub">سيظهر هنا أقرب بلاغ مهم أمامك</div>
-        </div>
+        <button id="btnMenu" class="icon-btn">☰</button>
       </div>
 
-      <div class="map-center-pin">
-        <div class="pin-ring"></div>
-        <div class="pin-core"></div>
+      <!-- قائمة صغيرة بدل الأزرار الكبيرة -->
+      <div id="miniMenu" class="mini-menu hidden">
+        <button id="btnLocate" class="menu-btn">📍 موقعي</button>
+        <button id="btnSound" class="menu-btn">🔊 الصوت مفعل</button>
+        <button id="btnAuth" class="menu-btn">تسجيل / دخول</button>
+        <button id="btnLogout" class="menu-btn danger hidden">خروج</button>
+        <button id="btnTogglePanel" class="menu-btn">البلاغات</button>
       </div>
 
+      <!-- حالة الموقع -->
+      <div class="live-location-pill" id="liveLocationPill">
+        <span class="live-dot"></span>
+        <span id="liveLocationText">جاري تحديد الموقع…</span>
+      </div>
+
+      <!-- التنبيه لا يظهر إلا عند وجود بلاغ -->
+      <div class="alert-box hidden" id="activeAlertBox">
+        <div class="alert-title" id="alertTitle">تنبيه قريب</div>
+        <div class="alert-sub" id="alertSub">يوجد بلاغ قريب أمامك</div>
+      </div>
+
+      <!-- زر الإبلاغ الوحيد -->
       <button id="btnQuickAdd" class="fab">＋</button>
     </section>
 
-    <section class="side-panel">
+    <!-- لوحة البلاغات الجانبية -->
+    <aside id="sidePanel" class="side-panel hidden-mobile">
       <div class="panel-head">
-        <div class="tabs">
-          <button class="tab active" data-tab="feed">البلاغات</button>
-          <button class="tab" data-tab="nearby">القريبة</button>
-        </div>
+        <div class="panel-title">البلاغات</div>
 
         <div class="filters">
           <select id="radius">
@@ -84,18 +82,9 @@
         </div>
       </div>
 
-      <div class="status-bar" id="status">
-        جاهز...
-      </div>
-
-      <div id="tab-feed" class="tabpage">
-        <div id="feed" class="feed"></div>
-      </div>
-
-      <div id="tab-nearby" class="tabpage hidden">
-        <div id="nearbyFeed" class="feed"></div>
-      </div>
-    </section>
+      <div class="status-bar" id="status">جاهز...</div>
+      <div id="feed" class="feed"></div>
+    </aside>
   </main>
 
   <!-- AUTH MODAL -->
@@ -164,7 +153,7 @@
       </div>
 
       <div class="modal-row">
-        <textarea id="reportText" rows="4" placeholder="وصف مختصر: مثال، حفرة عميقة في المسار الأيمن قبل الإشارة"></textarea>
+        <textarea id="reportText" rows="4" placeholder="وصف مختصر للبلاغ..."></textarea>
       </div>
 
       <div class="modal-actions">
@@ -176,11 +165,9 @@
     </div>
   </div>
 
-  <!-- Toast -->
   <div id="toast" class="toast hidden"></div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
@@ -195,6 +182,6 @@
     });
   </script>
 
-  <script src="./app.js?v=2"></script>
+  <script src="./app.js?v=3"></script>
 </body>
 </html>
