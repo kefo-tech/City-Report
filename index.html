@@ -7,7 +7,7 @@
   <meta name="theme-color" content="#0f172a" />
   <meta name="description" content="منصة بلاغات طريق ذكية تعرض التنبيهات القريبة على الخريطة مع إنذار صوتي تدريجي حسب المسافة." />
 
-  <link rel="stylesheet" href="./styles.css?v=4" />
+  <link rel="stylesheet" href="./styles.css?v=5" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 </head>
 
@@ -16,7 +16,6 @@
     <section class="map-shell">
       <div id="map" class="map"></div>
 
-      <!-- شريط علوي صغير -->
       <div class="top-mini-bar">
         <div class="brand-mini">
           <div class="brand-dot"></div>
@@ -29,30 +28,26 @@
         <button id="btnMenu" class="icon-btn" type="button" aria-label="القائمة">☰</button>
       </div>
 
-      <!-- قائمة صغيرة -->
       <div id="miniMenu" class="mini-menu hidden">
         <button id="btnLocate" class="menu-btn" type="button">📍 موقعي</button>
         <button id="btnSound" class="menu-btn" type="button">🔊 الصوت مفعل</button>
+        <button id="btnWakeLock" class="menu-btn" type="button">🔆 إبقاء الشاشة مضاءة</button>
         <button id="btnTogglePanel" class="menu-btn" type="button">البلاغات</button>
       </div>
 
-      <!-- حالة الموقع -->
       <div class="live-location-pill" id="liveLocationPill">
         <span class="live-dot"></span>
         <span id="liveLocationText">جاري تحديد الموقع…</span>
       </div>
 
-      <!-- صندوق التنبيه -->
       <div class="alert-box hidden" id="activeAlertBox">
         <div class="alert-title" id="alertTitle">تنبيه قريب</div>
         <div class="alert-sub" id="alertSub">يوجد بلاغ قريب أمامك</div>
       </div>
 
-      <!-- زر الإبلاغ -->
       <button id="btnQuickAdd" class="fab" type="button" aria-label="إضافة بلاغ">＋</button>
     </section>
 
-    <!-- اللوحة الجانبية -->
     <aside id="sidePanel" class="side-panel hidden-mobile">
       <div class="panel-head">
         <div class="panel-title">البلاغات</div>
@@ -85,7 +80,6 @@
     </aside>
   </main>
 
-  <!-- نافذة إضافة البلاغ -->
   <div id="modalAdd" class="modal hidden">
     <div class="modal-card">
       <div class="modal-title">إضافة بلاغ جديد</div>
@@ -117,11 +111,9 @@
     </div>
   </div>
 
-  <!-- Toast -->
   <div id="toast" class="toast hidden"></div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
@@ -135,6 +127,6 @@
     });
   </script>
 
-  <script src="./app.js?v=4"></script>
+  <script src="./app.js?v=5"></script>
 </body>
 </html>
