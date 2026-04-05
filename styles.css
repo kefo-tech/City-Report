@@ -14,7 +14,9 @@
   --radius:22px;
 }
 
-*{box-sizing:border-box}
+*{
+  box-sizing:border-box;
+}
 
 html,body{
   margin:0;
@@ -33,7 +35,9 @@ body{
   -webkit-touch-callout:none;
 }
 
-.hidden{display:none !important}
+.hidden{
+  display:none !important;
+}
 
 .app-shell{
   width:100%;
@@ -56,6 +60,7 @@ body{
   height:100%;
 }
 
+/* الشريط العلوي الصغير */
 .top-mini-bar{
   position:absolute;
   top:12px;
@@ -66,6 +71,7 @@ body{
   align-items:center;
   justify-content:space-between;
   gap:10px;
+  pointer-events:none;
 }
 
 .brand-mini{
@@ -79,6 +85,7 @@ body{
   backdrop-filter:blur(12px);
   box-shadow:var(--shadow);
   max-width:calc(100% - 70px);
+  pointer-events:auto;
 }
 
 .brand-dot{
@@ -114,8 +121,10 @@ body{
   border:1px solid var(--stroke);
   backdrop-filter:blur(12px);
   box-shadow:var(--shadow);
+  pointer-events:auto;
 }
 
+/* القائمة المصغرة */
 .mini-menu{
   position:absolute;
   top:74px;
@@ -143,14 +152,10 @@ body{
   font-weight:700;
   border:1px solid rgba(255,255,255,0.08);
   text-align:right;
+  font-size:.95rem;
 }
 
-.menu-btn.danger{
-  color:#fecaca;
-  background:rgba(239,68,68,0.12);
-  border-color:rgba(239,68,68,0.22);
-}
-
+/* شريط حالة الموقع */
 .live-location-pill{
   position:absolute;
   top:84px;
@@ -184,6 +189,7 @@ body{
   100%{transform:scale(1);opacity:1}
 }
 
+/* صندوق التنبيه */
 .alert-box{
   position:absolute;
   top:136px;
@@ -211,6 +217,7 @@ body{
   font-size:.94rem;
 }
 
+/* زر الإبلاغ */
 .fab{
   position:absolute;
   bottom:22px;
@@ -230,6 +237,7 @@ body{
   border:4px solid rgba(255,255,255,0.12);
 }
 
+/* اللوحة الجانبية */
 .side-panel{
   height:100vh;
   background:rgba(8,17,30,0.98);
@@ -256,7 +264,9 @@ body{
   gap:8px;
 }
 
-select,input,textarea{
+select,
+input,
+textarea{
   width:100%;
   background:rgba(255,255,255,0.05);
   color:var(--text);
@@ -264,6 +274,8 @@ select,input,textarea{
   border-radius:14px;
   padding:12px 13px;
   outline:none;
+  font-family:inherit;
+  font-size:1rem;
 }
 
 textarea{
@@ -288,6 +300,7 @@ textarea{
   padding:14px;
 }
 
+/* بطاقات البلاغات */
 .card{
   background:rgba(255,255,255,0.05);
   border:1px solid var(--stroke);
@@ -346,21 +359,25 @@ textarea{
   background:rgba(255,255,255,0.06);
   color:var(--text);
   border:1px solid rgba(255,255,255,0.08);
+  font-family:inherit;
 }
 
 .mini-btn.success{
   background:rgba(34,197,94,0.12);
   color:#bbf7d0;
 }
+
 .mini-btn.warn{
   background:rgba(245,158,11,0.12);
   color:#fde68a;
 }
+
 .mini-btn.info{
   background:rgba(56,189,248,0.12);
   color:#bae6fd;
 }
 
+/* أزرار عامة */
 .btn{
   border:none;
   border-radius:14px;
@@ -370,6 +387,7 @@ textarea{
   cursor:pointer;
   font-weight:700;
   border:1px solid var(--stroke);
+  font-family:inherit;
 }
 
 .btn.primary{
@@ -393,6 +411,7 @@ textarea{
   padding:25px 10px;
 }
 
+/* النوافذ المنبثقة */
 .modal{
   position:fixed;
   inset:0;
@@ -423,12 +442,6 @@ textarea{
   margin-bottom:12px;
 }
 
-.modal-row.two{
-  display:grid;
-  grid-template-columns:1fr 1fr;
-  gap:10px;
-}
-
 .modal-actions{
   display:flex;
   flex-wrap:wrap;
@@ -440,15 +453,11 @@ textarea{
   margin-top:10px;
   color:#cbd5e1;
   min-height:20px;
+  line-height:1.7;
+  font-size:.92rem;
 }
 
-.field-label{
-  display:block;
-  font-size:.88rem;
-  margin-bottom:6px;
-  color:#cbd5e1;
-}
-
+/* Toast */
 .toast{
   position:fixed;
   bottom:16px;
@@ -463,6 +472,23 @@ textarea{
   max-width:320px;
 }
 
+/* تحسينات لواجهة Leaflet */
+.leaflet-control-zoom a{
+  color:#0f172a !important;
+  font-weight:800;
+}
+
+.leaflet-popup-content-wrapper,
+.leaflet-popup-tip{
+  background:#0f172a;
+  color:#fff;
+}
+
+.leaflet-container{
+  background:#0b1220;
+}
+
+/* الجوال */
 @media (max-width: 980px){
   .app-shell{
     grid-template-columns:1fr;
@@ -502,7 +528,14 @@ textarea{
     top:126px;
   }
 
-  .modal-row.two{
-    grid-template-columns:1fr;
+  .fab{
+    width:74px;
+    height:74px;
+    font-size:2rem;
+    bottom:18px;
+  }
+
+  .mini-menu{
+    width:190px;
   }
 }
