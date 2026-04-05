@@ -4,11 +4,11 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>City Report | منصة البلاغات القريبة</title>
-  <meta name="theme-color" content="#0f172a"/>
+  <meta name="theme-color" content="#0f172a" />
   <meta name="description" content="منصة بلاغات طريق ذكية تعرض التنبيهات القريبة على الخريطة مع إنذار صوتي تدريجي حسب المسافة." />
 
-  <link rel="stylesheet" href="./styles.css?v=3">
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="./styles.css?v=4" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 </head>
 
 <body>
@@ -26,16 +26,14 @@
           </div>
         </div>
 
-        <button id="btnMenu" class="icon-btn">☰</button>
+        <button id="btnMenu" class="icon-btn" type="button" aria-label="القائمة">☰</button>
       </div>
 
-      <!-- قائمة صغيرة بدل الأزرار الكبيرة -->
+      <!-- قائمة صغيرة -->
       <div id="miniMenu" class="mini-menu hidden">
-        <button id="btnLocate" class="menu-btn">📍 موقعي</button>
-        <button id="btnSound" class="menu-btn">🔊 الصوت مفعل</button>
-        <button id="btnAuth" class="menu-btn">تسجيل / دخول</button>
-        <button id="btnLogout" class="menu-btn danger hidden">خروج</button>
-        <button id="btnTogglePanel" class="menu-btn">البلاغات</button>
+        <button id="btnLocate" class="menu-btn" type="button">📍 موقعي</button>
+        <button id="btnSound" class="menu-btn" type="button">🔊 الصوت مفعل</button>
+        <button id="btnTogglePanel" class="menu-btn" type="button">البلاغات</button>
       </div>
 
       <!-- حالة الموقع -->
@@ -44,17 +42,17 @@
         <span id="liveLocationText">جاري تحديد الموقع…</span>
       </div>
 
-      <!-- التنبيه لا يظهر إلا عند وجود بلاغ -->
+      <!-- صندوق التنبيه -->
       <div class="alert-box hidden" id="activeAlertBox">
         <div class="alert-title" id="alertTitle">تنبيه قريب</div>
         <div class="alert-sub" id="alertSub">يوجد بلاغ قريب أمامك</div>
       </div>
 
-      <!-- زر الإبلاغ الوحيد -->
-      <button id="btnQuickAdd" class="fab">＋</button>
+      <!-- زر الإبلاغ -->
+      <button id="btnQuickAdd" class="fab" type="button" aria-label="إضافة بلاغ">＋</button>
     </section>
 
-    <!-- لوحة البلاغات الجانبية -->
+    <!-- اللوحة الجانبية -->
     <aside id="sidePanel" class="side-panel hidden-mobile">
       <div class="panel-head">
         <div class="panel-title">البلاغات</div>
@@ -78,7 +76,7 @@
             <option value="أخرى">أخرى</option>
           </select>
 
-          <button id="btnRefresh" class="btn ghost small">تحديث</button>
+          <button id="btnRefresh" class="btn ghost small" type="button">تحديث</button>
         </div>
       </div>
 
@@ -87,34 +85,7 @@
     </aside>
   </main>
 
-  <!-- AUTH MODAL -->
-  <div id="modalAuth" class="modal hidden">
-    <div class="modal-card">
-      <div class="modal-title">تسجيل / دخول</div>
-
-      <div class="modal-row">
-        <input id="authEmail" type="email" placeholder="البريد الإلكتروني">
-      </div>
-
-      <div class="modal-row">
-        <input id="authPass" type="password" placeholder="كلمة المرور">
-      </div>
-
-      <div class="modal-row">
-        <input id="authName" type="text" placeholder="اسم مستعار (للتسجيل فقط)">
-      </div>
-
-      <div class="modal-actions">
-        <button id="btnLogin" class="btn primary">دخول</button>
-        <button id="btnRegister" class="btn">تسجيل</button>
-        <button class="btn ghost" data-close="#modalAuth">إغلاق</button>
-      </div>
-
-      <div id="authMsg" class="hint"></div>
-    </div>
-  </div>
-
-  <!-- ADD REPORT MODAL -->
+  <!-- نافذة إضافة البلاغ -->
   <div id="modalAdd" class="modal hidden">
     <div class="modal-card">
       <div class="modal-title">إضافة بلاغ جديد</div>
@@ -131,57 +102,39 @@
         </select>
       </div>
 
-      <div class="modal-row two">
-        <div>
-          <label class="field-label">مدة البلاغ</label>
-          <select id="reportTTL">
-            <option value="30">30 دقيقة</option>
-            <option value="60" selected>ساعة</option>
-            <option value="180">3 ساعات</option>
-            <option value="720">12 ساعة</option>
-            <option value="1440">24 ساعة</option>
-          </select>
-        </div>
-
-        <div>
-          <label class="field-label">اتجاه السير</label>
-          <select id="reportDirectionMode">
-            <option value="current" selected>حسب اتجاهي الحالي</option>
-            <option value="all">كل الاتجاهات</option>
-          </select>
-        </div>
-      </div>
-
       <div class="modal-row">
-        <textarea id="reportText" rows="4" placeholder="وصف مختصر للبلاغ..."></textarea>
+        <textarea id="reportText" rows="4" placeholder="اكتب وصفًا مختصرًا للبلاغ..."></textarea>
       </div>
+
+      <div class="hint">مدة البلاغ ساعة واحدة فقط، وبعدها يمكن لأي شخص إرسال بلاغ جديد إذا استمرت المشكلة.</div>
 
       <div class="modal-actions">
-        <button id="btnSubmitReport" class="btn primary">نشر البلاغ</button>
-        <button class="btn ghost" data-close="#modalAdd">إغلاق</button>
+        <button id="btnSubmitReport" class="btn primary" type="button">نشر البلاغ</button>
+        <button class="btn ghost" type="button" data-close="#modalAdd">إغلاق</button>
       </div>
 
       <div id="addMsg" class="hint"></div>
     </div>
   </div>
 
+  <!-- Toast -->
   <div id="toast" class="toast hidden"></div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
   <script>
     document.addEventListener("click", (e) => {
       const close = e.target?.getAttribute?.("data-close");
       if (close) {
-        const m = document.querySelector(close);
-        if (m) m.classList.add("hidden");
+        const modal = document.querySelector(close);
+        if (modal) modal.classList.add("hidden");
       }
     });
   </script>
 
-  <script src="./app.js?v=3"></script>
+  <script src="./app.js?v=4"></script>
 </body>
 </html>
